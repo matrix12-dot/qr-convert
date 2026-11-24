@@ -22,7 +22,7 @@ export interface UploadedFileInfo {
   fileName: string;
   sizeBytes: number;
   mimeType: string;
-  provider?: 'tmpfiles' | 'dataurl';
+  mode?: 'hosted' | 'embedded';
 }
 
 interface FileUploaderProps {
@@ -31,7 +31,7 @@ interface FileUploaderProps {
   onClearFile: () => void;
 }
 
-const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024;
+const MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024;
 
 function getFileTypeIcon(fileName: string, mimeType: string) {
   const lower = fileName.toLowerCase();
@@ -70,7 +70,7 @@ export function FileUploader({
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      setErrorMsg('حجم الملف يتجاوز الحد المسموح به (15 ميجابايت).');
+      setErrorMsg('حجم الملف يتجاوز الحد المسموح به (200 ميجابايت).');
       return;
     }
 
@@ -83,7 +83,7 @@ export function FileUploader({
         fileName: file.name,
         sizeBytes: file.size,
         mimeType: file.type || 'application/octet-stream',
-        provider: result.provider,
+        mode: result.mode,
       });
     } catch (err) {
       const message =
@@ -173,7 +173,7 @@ export function FileUploader({
                   اسحب أي ملف وأفلته هنا أو اختر من جهازك
                 </p>
                 <p className="text-xs text-slate-300">
-                  PDF · Word · Excel · PowerPoint · ZIP · TXT · وسائط · حتى 15 ميجابايت
+                  PDF · Word · Excel · PowerPoint · ZIP · TXT · وسائط · حتى 200 ميجابايت
                 </p>
               </div>
               <button
@@ -205,7 +205,7 @@ export function FileUploader({
                 </span>
                 <span aria-hidden="true">·</span>
                 <span className="font-medium text-emerald-300">
-                  {uploadedFile.provider === 'dataurl'
+                  {uploadedFile.mode === 'embedded'
                     ? 'مضمّن مباشرة في الرمز'
                     : 'جاهز للمسح والتحميل'}
                 </span>

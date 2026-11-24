@@ -24,7 +24,7 @@ interface ImageUploaderProps {
   onClearImage: () => void;
 }
 
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+const MAX_FILE_SIZE_BYTES = 32 * 1024 * 1024;
 
 export function ImageUploader({
   uploadedImage,
@@ -48,7 +48,7 @@ export function ImageUploader({
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      setErrorMsg('حجم الصورة يتجاوز الحد المسموح به (10 ميجابايت).');
+      setErrorMsg('حجم الصورة يتجاوز الحد المسموح به (32 ميجابايت).');
       return;
     }
 
@@ -145,7 +145,7 @@ export function ImageUploader({
                   اسحب الصورة وأفلتها هنا أو اختر من جهازك
                 </p>
                 <p className="text-xs text-slate-300">
-                  PNG · JPG · WEBP · GIF · حتى 10 ميجابايت
+                  PNG · JPG · WEBP · GIF · حتى 32 ميجابايت
                 </p>
               </div>
               <button

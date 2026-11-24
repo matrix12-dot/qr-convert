@@ -27,6 +27,16 @@ interface ImgbbResponse {
   };
 }
 
+interface GofileUploadResponse {
+  status?: string;
+  data?: {
+    downloadPage?: string;
+    code?: string;
+    id?: string;
+    name?: string;
+  };
+}
+
 interface TmpfilesResponse {
   status?: string;
   data?: {
@@ -72,6 +82,25 @@ export function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+async function uploadToGofile(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch('https://upload.gofile.io/uploadfile', {
+    method: 'POST',
+    body: formData,
+  });
+
+  const payload = await safeParseJson<GofileUploadResponse>(response);
+  const downloadPage = payload?.data?.downloadPage;
+
+  if (!response.ok || payload?.status !== 'ok' || !isSafeHttpUrl(downloadPage)) {
+    throw new Error('تعذر رفع الملف حالياً. يرجى المحاولة مرة أخرى.');
+  }
+
+  return downloadPage;
+}
+
 async function uploadToTmpfiles(file: File): Promise<string> {
   const formData = new FormData();
   formData.append('file', file);
@@ -85,9 +114,7 @@ async function uploadToTmpfiles(file: File): Promise<string> {
   const uploadedUrl = payload?.data?.url;
 
   if (!response.ok || payload?.status !== 'success' || !isSafeHttpUrl(uploadedUrl)) {
-    throw new Error(
-      payload?.message || 'تعذر رفع الملف إلى خدمة الاستضافة السحابية. حاول مرة أخرى.'
-    );
+    throw new Error('تعذر رفع الملف حالياً. يرجى المحاولة مرة أخرى.');
   }
 
   return uploadedUrl;
@@ -96,13 +123,12 @@ async function uploadToTmpfiles(file: File): Promise<string> {
 export interface ClientImageUploadResult {
   url: string;
   thumbUrl: string;
-  provider: 'imgbb' | 'tmpfiles';
 }
 
 export async function uploadImageClientSide(
   file: File
 ): Promise<ClientImageUploadResult> {
-  const localThumbUrl = await readFileAsDataUrl(file);
+  const localThumbUrl = URL.createObjectURL(file);
 
   if (isImgbbConfigured()) {
     const formData = new FormData();
@@ -119,6 +145,7 @@ export async function uploadImageClientSide(
     const imgUrl = payload?.data?.url;
 
     if (!response.ok || !payload?.success || !isSafeHttpUrl(imgUrl)) {
+      URL.revokeObjectURL(localThumbUrl);
       throw new Error(
         payload?.error?.message ||
           'تعذر رفع الصورة حالياً. يرجى المحاولة مرة أخرى.'
@@ -131,26 +158,40 @@ export async function uploadImageClientSide(
         ? payload.data.display_url
         : localThumbUrl;
 
+    if (thumbUrl !== localThumbUrl) {
+      URL.revokeObjectURL(localThumbUrl);
+    }
+
     return {
       url: imgUrl,
       thumbUrl,
-      provider: 'imgbb',
     };
   }
 
-  // Fallback for static deployments when VITE_IMGBB_API_KEY is not yet configured
-  const fallbackUrl = await uploadToTmpfiles(file);
-  return {
-    url: fallbackUrl,
-    thumbUrl: localThumbUrl,
-    provider: 'tmpfiles',
-  };
+  try {
+    const hostedUrl = await uploadToGofile(file);
+    return {
+      url: hostedUrl,
+      thumbUrl: localThumbUrl,
+    };
+  } catch {
+    try {
+      const fallbackUrl = await uploadToTmpfiles(file);
+      return {
+        url: fallbackUrl,
+        thumbUrl: localThumbUrl,
+      };
+    } catch (err) {
+      URL.revokeObjectURL(localThumbUrl);
+      throw err;
+    }
+  }
 }
 
 export interface ClientFileUploadResult {
   id: string;
   url: string;
-  provider: 'tmpfiles' | 'dataurl';
+  mode: 'hosted' | 'embedded';
 }
 
 export async function uploadFileClientSide(
@@ -162,24 +203,39 @@ export async function uploadFileClientSide(
   }
 
   try {
-    const uploadedUrl = await uploadToTmpfiles(file);
+    const uploadedUrl = await uploadToGofile(file);
     return {
       id: `${Date.now()}`,
       url: uploadedUrl,
-      provider: 'tmpfiles',
+      mode: 'hosted',
     };
   } catch (err) {
-    // Small plain files can be embedded directly as Data URL in the QR code
+    if (file.size <= 50 * 1024 * 1024) {
+      try {
+        const fallbackUrl = await uploadToTmpfiles(file);
+        return {
+          id: `${Date.now()}`,
+          url: fallbackUrl,
+          mode: 'hosted',
+        };
+      } catch {
+        // Continue to small-file embedded fallback
+      }
+    }
+
     if (file.size <= 1800) {
       const dataUrl = await readFileAsDataUrl(file);
       if (dataUrl.length <= 2600) {
         return {
           id: `${Date.now()}`,
           url: dataUrl,
-          provider: 'dataurl',
+          mode: 'embedded',
         };
       }
     }
-    throw err;
+
+    throw err instanceof Error
+      ? err
+      : new Error('تعذر رفع الملف حالياً. يرجى المحاولة مرة أخرى.');
   }
 }
