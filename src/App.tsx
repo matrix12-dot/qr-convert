@@ -28,7 +28,6 @@ export default function App() {
   const [textValue, setTextValue] = useState('https://example.com');
   const [uploadedImage, setUploadedImage] = useState<UploadedImageInfo | null>(null);
   const [uploadedFile, setUploadedFile] = useState<UploadedFileInfo | null>(null);
-  const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
 
   const [fgColor, setFgColor] = useState('#0F172A');
   const [bgColor, setBgColor] = useState('#FFFFFF');
@@ -50,22 +49,6 @@ export default function App() {
     return [];
   });
 
-  useEffect(() => {
-    let active = true;
-    fetch('/api/upload-status')
-      .then((res) => res.json())
-      .then((data: {configured?: boolean}) => {
-        if (active && typeof data.configured === 'boolean') {
-          setApiConfigured(data.configured);
-        }
-      })
-      .catch(() => {
-        if (active) setApiConfigured(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     try {
@@ -390,7 +373,6 @@ export default function App() {
                 ) : mode === 'image' ? (
                   <ImageUploader
                     uploadedImage={uploadedImage}
-                    apiConfigured={apiConfigured}
                     onImageUploaded={(info) => {
                       setUploadedImage(info);
                       saveToHistory('image', info.url, info.fileName);

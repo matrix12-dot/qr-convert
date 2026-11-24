@@ -4,10 +4,13 @@ import {
   Check,
   Copy,
   Image as ImageIcon,
+  Info,
   Loader2,
   RefreshCw,
   UploadCloud,
 } from 'lucide-react';
+import {isImgbbConfigured} from '../config/uploadConfig';
+import {uploadImageClientSide} from '../services/clientUploadService';
 import {formatBytesArabic} from '../utils/qrHelpers';
 
 export interface UploadedImageInfo {
@@ -15,11 +18,11 @@ export interface UploadedImageInfo {
   thumbUrl: string;
   fileName: string;
   sizeBytes: number;
+  provider?: 'imgbb' | 'tmpfiles';
 }
 
 interface ImageUploaderProps {
   uploadedImage: UploadedImageInfo | null;
-  apiConfigured: boolean | null;
   onImageUploaded: (info: UploadedImageInfo) => void;
   onClearImage: () => void;
 }
@@ -28,7 +31,6 @@ const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 export function ImageUploader({
   uploadedImage,
-  apiConfigured,
   onImageUploaded,
   onClearImage,
 }: ImageUploaderProps) {
@@ -39,19 +41,7 @@ export function ImageUploader({
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
 
-  const readFileAsDataUrl = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          resolve(reader.result);
-        } else {
-          reject(new Error('تعذر قراءة الملف.'));
-        }
-      };
-      reader.onerror = () => reject(new Error('فشلت قراءة الصورة من الجهاز.'));
-      reader.readAsDataURL(file);
-    });
+  const imgbbReady = isImgbbConfigured();
 
   const handleFile = async (file: File) => {
     setErrorMsg(null);
@@ -69,33 +59,13 @@ export function ImageUploader({
 
     setIsUploading(true);
     try {
-      const base64DataUrl = await readFileAsDataUrl(file);
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          imageBase64: base64DataUrl,
-          name: file.name.replace(/\.[^.]+$/, ''),
-        }),
-      });
-
-      const payload = (await response.json()) as {
-        url?: string;
-        thumbUrl?: string;
-        message?: string;
-      };
-
-      if (!response.ok || !payload.url) {
-        throw new Error(
-          payload.message || 'تعذر رفع الصورة عبر ImgBB. تحقق من الإعدادات وحاول مجدداً.'
-        );
-      }
-
+      const result = await uploadImageClientSide(file);
       onImageUploaded({
-        url: payload.url,
-        thumbUrl: payload.thumbUrl || payload.url,
+        url: result.url,
+        thumbUrl: result.thumbUrl,
         fileName: file.name,
         sizeBytes: file.size,
+        provider: result.provider,
       });
     } catch (err) {
       const message =
@@ -136,22 +106,21 @@ export function ImageUploader({
 
   return (
     <div className="space-y-4">
-      {apiConfigured === false && (
+      {!imgbbReady && (
         <div
           role="note"
-          className="flex items-start gap-3 rounded-xl border border-amber-400/30 bg-amber-500/10 p-3.5 text-sm text-amber-100"
+          className="flex items-start gap-3 rounded-xl border border-sky-400/25 bg-sky-500/10 p-3.5 text-sm text-sky-100"
         >
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
           <div className="space-y-1 leading-relaxed">
-            <p className="font-medium text-amber-200">مطلوب إعداد مفتاح ImgBB API</p>
-            <p className="text-xs text-amber-100/85">
-              لتفعيل الرفع المباشر إلى ImgBB، أضف مفتاحك المجاني في متغير البيئة{' '}
-              <code className="rounded bg-amber-950/60 px-1.5 py-0.5 font-mono text-[11px] text-amber-200">
-                IMGBB_API_KEY
+            <p className="text-xs text-sky-100/90">
+              الرفع المباشر متاح تلقائياً. لاستخدام حسابك الدائم على ImgBB أضف{' '}
+              <code className="rounded bg-slate-950/60 px-1.5 py-0.5 font-mono text-[11px] text-sky-200">
+                VITE_IMGBB_API_KEY
               </code>{' '}
-              داخل لوحة الأسرار أو ملف{' '}
-              <code className="rounded bg-amber-950/60 px-1.5 py-0.5 font-mono text-[11px] text-amber-200">
-                server.ts
+              في إعدادات البناء أو داخل{' '}
+              <code className="rounded bg-slate-950/60 px-1.5 py-0.5 font-mono text-[11px] text-sky-200">
+                uploadConfig.ts
               </code>
               .
             </p>
@@ -165,7 +134,7 @@ export function ImageUploader({
         accept="image/png,image/jpeg,image/webp,image/gif"
         onChange={handleFileChange}
         className="sr-only"
-        aria-label="اختيار صورة للرفع إلى ImgBB"
+        aria-label="اختيار صورة للرفع المباشر"
       />
 
       {!uploadedImage ? (
@@ -187,10 +156,12 @@ export function ImageUploader({
               <Loader2 className="h-8 w-8 animate-spin text-sky-400" />
               <div className="space-y-1">
                 <p className="text-sm font-medium text-white">
-                  جارٍ رفع الصورة إلى ImgBB...
+                  {imgbbReady
+                    ? 'جارٍ رفع الصورة مباشرة إلى ImgBB...'
+                    : 'جارٍ رفع الصورة وتوليد الرابط المباشر...'}
                 </p>
                 <p className="text-xs text-slate-300">
-                  سيتم إنشاء رمز QR فور استلام الرابط المباشر
+                  سيتم إنشاء رمز QR فور استلام الرابط
                 </p>
               </div>
             </div>
@@ -247,7 +218,11 @@ export function ImageUploader({
                   {formatBytesArabic(uploadedImage.sizeBytes)}
                 </span>
                 <span aria-hidden="true">·</span>
-                <span className="font-medium text-emerald-300">مرفوعة على ImgBB</span>
+                <span className="font-medium text-emerald-300">
+                  {uploadedImage.provider === 'imgbb'
+                    ? 'مرفوعة على ImgBB'
+                    : 'رابط صورة مباشر'}
+                </span>
               </div>
 
               <p

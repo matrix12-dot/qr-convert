@@ -13,6 +13,7 @@ import {
   Paperclip,
   RefreshCw,
 } from 'lucide-react';
+import {uploadFileClientSide} from '../services/clientUploadService';
 import {formatBytesArabic} from '../utils/qrHelpers';
 
 export interface UploadedFileInfo {
@@ -21,6 +22,7 @@ export interface UploadedFileInfo {
   fileName: string;
   sizeBytes: number;
   mimeType: string;
+  provider?: 'tmpfiles' | 'dataurl';
 }
 
 interface FileUploaderProps {
@@ -59,20 +61,6 @@ export function FileUploader({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
 
-  const readFileAsDataUrl = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          resolve(reader.result);
-        } else {
-          reject(new Error('تعذر قراءة الملف.'));
-        }
-      };
-      reader.onerror = () => reject(new Error('فشلت قراءة الملف من الجهاز.'));
-      reader.readAsDataURL(file);
-    });
-
   const handleFile = async (file: File) => {
     setErrorMsg(null);
 
@@ -88,38 +76,14 @@ export function FileUploader({
 
     setIsUploading(true);
     try {
-      const base64DataUrl = await readFileAsDataUrl(file);
-      const response = await fetch('/api/upload-file', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-          fileBase64: base64DataUrl,
-          fileName: file.name,
-          mimeType: file.type || 'application/octet-stream',
-        }),
-      });
-
-      const payload = (await response.json()) as {
-        id?: string;
-        url?: string;
-        fileName?: string;
-        size?: number;
-        mimeType?: string;
-        message?: string;
-      };
-
-      if (!response.ok || !payload.url || !payload.id) {
-        throw new Error(
-          payload.message || 'تعذر إرفاق الملف حالياً. يرجى المحاولة مرة أخرى.'
-        );
-      }
-
+      const result = await uploadFileClientSide(file);
       onFileUploaded({
-        id: payload.id,
-        url: payload.url,
-        fileName: payload.fileName || file.name,
-        sizeBytes: payload.size || file.size,
-        mimeType: payload.mimeType || file.type || 'application/octet-stream',
+        id: result.id,
+        url: result.url,
+        fileName: file.name,
+        sizeBytes: file.size,
+        mimeType: file.type || 'application/octet-stream',
+        provider: result.provider,
       });
     } catch (err) {
       const message =
@@ -192,7 +156,7 @@ export function FileUploader({
               <Loader2 className="h-8 w-8 animate-spin text-sky-400" />
               <div className="space-y-1">
                 <p className="text-sm font-medium text-white">
-                  جارٍ إرفاق الملف وتجهيز رابط التحميل...
+                  جارٍ رفع الملف مباشرة وتجهيز الرابط...
                 </p>
                 <p className="text-xs text-slate-300">
                   سيتم توليد رمز QR للوصول المباشر للملف فور الانتهاء
@@ -240,7 +204,11 @@ export function FileUploader({
                   {formatBytesArabic(uploadedFile.sizeBytes)}
                 </span>
                 <span aria-hidden="true">·</span>
-                <span className="font-medium text-emerald-300">جاهز للمسح والتحميل</span>
+                <span className="font-medium text-emerald-300">
+                  {uploadedFile.provider === 'dataurl'
+                    ? 'مضمّن مباشرة في الرمز'
+                    : 'جاهز للمسح والتحميل'}
+                </span>
               </div>
 
               <p
@@ -274,11 +242,12 @@ export function FileUploader({
 
             <a
               href={uploadedFile.url}
-              download={uploadedFile.fileName}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.08] px-3.5 py-2 text-xs font-medium text-slate-100 transition-colors hover:bg-white/[0.15] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400 whitespace-nowrap shrink-0"
             >
               <ExternalLink className="h-3.5 w-3.5" />
-              <span>تجربة التحميل</span>
+              <span>فتح الرابط</span>
             </a>
 
             <button
