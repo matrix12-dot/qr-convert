@@ -1,0 +1,6 @@
+{
+  "name": "استوديو كيو آر",
+  "description": "تطبيق ويب عربي عصري لتوليد رموز QR للنصوص والروابط والصور عبر ImgBB مع تخصيص الألوان والتحميل بجودة عالية.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,120 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-display: 'Cairo', 'IBM Plex Sans Arabic', system-ui, sans-serif;
+    --font-sans: 'IBM Plex Sans Arabic', system-ui, -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+    color-scheme: dark;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+/* Frosted glass surface with subtle specular top edge */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 24px 48px -12px rgba(2, 6, 23, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.glass-header {
+  background: rgba(6, 11, 25, 0.65);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Subtle architectural dot grid over the animated background */
+.glass-grid-overlay {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+/* Frosted preview stage grid */
+.qr-stage-glass {
+  background-color: rgba(2, 6, 23, 0.42);
+  background-image:
+    linear-gradient(45deg, rgba(255, 255, 255, 0.03) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(255, 255, 255, 0.03) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.03) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.03) 75%);
+  background-size: 22px 22px;
+  background-position: 0 0, 0 11px, 11px -11px, -11px 0;
+}
+
+/* Compositor-only animated ambient orbs */
+@keyframes driftOne {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  33% {
+    transform: translate3d(6vw, 4vh, 0) scale(1.08);
+  }
+  66% {
+    transform: translate3d(-4vw, 8vh, 0) scale(0.96);
+  }
+}
+
+@keyframes driftTwo {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  40% {
+    transform: translate3d(-7vw, -5vh, 0) scale(1.1);
+  }
+  75% {
+    transform: translate3d(5vw, -3vh, 0) scale(0.95);
+  }
+}
+
+@keyframes driftThree {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4vw, -6vh, 0) scale(1.06);
+  }
+}
+
+.orb-animate-1 {
+  animation: driftOne 22s ease-in-out infinite;
+  will-change: transform;
+}
+
+.orb-animate-2 {
+  animation: driftTwo 28s ease-in-out infinite;
+  will-change: transform;
+}
+
+.orb-animate-3 {
+  animation: driftThree 24s ease-in-out infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .orb-animate-1,
+  .orb-animate-2,
+  .orb-animate-3 {
+    animation: none;
+  }
+}
