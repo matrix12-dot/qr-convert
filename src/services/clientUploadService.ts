@@ -121,7 +121,7 @@ export async function uploadImageClientSide(
     if (!response.ok || !payload?.success || !isSafeHttpUrl(imgUrl)) {
       throw new Error(
         payload?.error?.message ||
-          'تعذر رفع الصورة إلى ImgBB. تأكد من صحة مفتاح API وحاول مرة أخرى.'
+          'تعذر رفع الصورة حالياً. يرجى المحاولة مرة أخرى.'
       );
     }
 

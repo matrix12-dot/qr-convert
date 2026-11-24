@@ -179,7 +179,7 @@ export function QrPreviewPanel({
               {renderError || 'بانتظار المحتوى لتوليد الرمز'}
             </p>
             <p className="text-xs leading-relaxed text-slate-300">
-              أدخل نصاً أو رابطاً، أو ارفع صورة عبر ImgBB ليظهر رمز QR هنا فوراً.
+              أدخل نصاً أو رابطاً، أو ارفع صورة أو ملفاً ليظهر رمز QR هنا فوراً.
             </p>
           </div>
         )}

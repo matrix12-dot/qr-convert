@@ -4,12 +4,10 @@ import {
   Check,
   Copy,
   Image as ImageIcon,
-  Info,
   Loader2,
   RefreshCw,
   UploadCloud,
 } from 'lucide-react';
-import {isImgbbConfigured} from '../config/uploadConfig';
 import {uploadImageClientSide} from '../services/clientUploadService';
 import {formatBytesArabic} from '../utils/qrHelpers';
 
@@ -18,7 +16,6 @@ export interface UploadedImageInfo {
   thumbUrl: string;
   fileName: string;
   sizeBytes: number;
-  provider?: 'imgbb' | 'tmpfiles';
 }
 
 interface ImageUploaderProps {
@@ -40,8 +37,6 @@ export function ImageUploader({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [previewFailed, setPreviewFailed] = useState(false);
-
-  const imgbbReady = isImgbbConfigured();
 
   const handleFile = async (file: File) => {
     setErrorMsg(null);
@@ -65,7 +60,6 @@ export function ImageUploader({
         thumbUrl: result.thumbUrl,
         fileName: file.name,
         sizeBytes: file.size,
-        provider: result.provider,
       });
     } catch (err) {
       const message =
@@ -106,28 +100,6 @@ export function ImageUploader({
 
   return (
     <div className="space-y-4">
-      {!imgbbReady && (
-        <div
-          role="note"
-          className="flex items-start gap-3 rounded-xl border border-sky-400/25 bg-sky-500/10 p-3.5 text-sm text-sky-100"
-        >
-          <Info className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
-          <div className="space-y-1 leading-relaxed">
-            <p className="text-xs text-sky-100/90">
-              الرفع المباشر متاح تلقائياً. لاستخدام حسابك الدائم على ImgBB أضف{' '}
-              <code className="rounded bg-slate-950/60 px-1.5 py-0.5 font-mono text-[11px] text-sky-200">
-                VITE_IMGBB_API_KEY
-              </code>{' '}
-              في إعدادات البناء أو داخل{' '}
-              <code className="rounded bg-slate-950/60 px-1.5 py-0.5 font-mono text-[11px] text-sky-200">
-                uploadConfig.ts
-              </code>
-              .
-            </p>
-          </div>
-        </div>
-      )}
-
       <input
         ref={fileInputRef}
         type="file"
@@ -156,9 +128,7 @@ export function ImageUploader({
               <Loader2 className="h-8 w-8 animate-spin text-sky-400" />
               <div className="space-y-1">
                 <p className="text-sm font-medium text-white">
-                  {imgbbReady
-                    ? 'جارٍ رفع الصورة مباشرة إلى ImgBB...'
-                    : 'جارٍ رفع الصورة وتوليد الرابط المباشر...'}
+                  جارٍ رفع الصورة وتوليد الرابط المباشر...
                 </p>
                 <p className="text-xs text-slate-300">
                   سيتم إنشاء رمز QR فور استلام الرابط
@@ -218,11 +188,7 @@ export function ImageUploader({
                   {formatBytesArabic(uploadedImage.sizeBytes)}
                 </span>
                 <span aria-hidden="true">·</span>
-                <span className="font-medium text-emerald-300">
-                  {uploadedImage.provider === 'imgbb'
-                    ? 'مرفوعة على ImgBB'
-                    : 'رابط صورة مباشر'}
-                </span>
+                <span className="font-medium text-emerald-300">رابط صورة مباشر</span>
               </div>
 
               <p

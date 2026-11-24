@@ -256,7 +256,7 @@ export default function App() {
               مولّد رموز QR للنصوص والروابط والملفات
             </h1>
             <p className="text-sm leading-relaxed text-slate-300 sm:text-base">
-              أنشئ رمز الاستجابة السريعة فوراً عبر إدخال أي نص أو رابط، أو رفع صورة عبر ImgBB، أو إرفاق ملفاتك لتوليد رابط تحميل مباشر بصيغة PNG عالية الجودة.
+              أنشئ رمز الاستجابة السريعة فوراً عبر إدخال أي نص أو رابط، أو رفع صورة، أو إرفاق ملفاتك لتوليد رابط تحميل مباشر بصيغة PNG عالية الجودة.
             </p>
           </section>
 
@@ -609,7 +609,7 @@ export default function App() {
 
             {history.length === 0 ? (
               <div className="px-5 py-8 text-center text-xs text-slate-300 sm:px-6">
-                عند تحميل رمز QR أو رفع صورة عبر ImgBB سيظهر هنا لإعادة استخدامه بسرعة.
+                عند تحميل رمز QR أو رفع صورة أو ملف سيظهر هنا لإعادة استخدامه بسرعة.
               </div>
             ) : (
               <ul className="divide-y divide-white/10">
@@ -639,7 +639,7 @@ export default function App() {
                           </p>
                           <p className="text-xs text-slate-300">
                             {item.mode === 'image'
-                              ? 'صورة ImgBB'
+                              ? 'صورة مرفوعة'
                               : item.mode === 'file'
                                 ? 'ملف مرفق'
                                 : 'نص أو رابط'}
