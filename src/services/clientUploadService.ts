@@ -1,5 +1,3 @@
-import {IMGBB_API_KEY, isImgbbConfigured} from '../config/uploadConfig';
-
 export const BLOCKED_FILE_EXTENSIONS = new Set([
   '.exe',
   '.bat',
@@ -13,18 +11,12 @@ export const BLOCKED_FILE_EXTENSIONS = new Set([
   '.pif',
 ]);
 
-interface ImgbbResponse {
-  success?: boolean;
-  data?: {
-    url?: string;
-    display_url?: string;
-    thumb?: {
-      url?: string;
-    };
-  };
-  error?: {
-    message?: string;
-  };
+interface ProxyUploadResponse {
+  url?: string;
+  displayUrl?: string;
+  thumbUrl?: string;
+  error?: string;
+  message?: string;
 }
 
 interface GofileUploadResponse {
@@ -74,7 +66,7 @@ export function readFileAsDataUrl(file: File): Promise<string> {
       if (typeof reader.result === 'string') {
         resolve(reader.result);
       } else {
-        reject(new Error('تعذر قراءة الملف.'));
+        reject(new Error('تعذر قراءة الملف من الجهاز.'));
       }
     };
     reader.onerror = () => reject(new Error('فشلت قراءة الملف من الجهاز.'));
@@ -82,20 +74,94 @@ export function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
+function describeHttpError(status: number, fallbackMessage: string): string {
+  if (status === 404 || status === 405) {
+    return 'مسار الرفع المحلي (/api/upload) غير متاح على الاستضافة الحالية. تأكد من نشر Cloudflare Worker أو تفعيل Functions.';
+  }
+  if (status === 413) {
+    return 'حجم الصورة يتجاوز الحد الأقصى المسموح به للرفع.';
+  }
+  if (status === 502 || status === 503 || status === 504) {
+    return 'تعذر الوصول إلى خادم استضافة الصور الخارجي مؤقتاً. حاول مرة أخرى بعد قليل.';
+  }
+  return fallbackMessage;
+}
+
+export interface ClientImageUploadResult {
+  url: string;
+  thumbUrl: string;
+}
+
+export async function uploadImageClientSide(
+  file: File
+): Promise<ClientImageUploadResult> {
+  const localThumbUrl = URL.createObjectURL(file);
+  const formData = new FormData();
+  formData.append('image', file);
+  formData.append('name', file.name.replace(/\.[^.]+$/, '').slice(0, 80));
+
+  let response: Response;
+  try {
+    response = await fetch('/api/upload', {
+      method: 'POST',
+      body: formData,
+    });
+  } catch {
+    URL.revokeObjectURL(localThumbUrl);
+    throw new Error(
+      'تعذر الاتصال بخادم الرفع (/api/upload). تحقق من اتصال الإنترنت أو من تشغيل Cloudflare Worker.'
+    );
+  }
+
+  const payload = await safeParseJson<ProxyUploadResponse>(response);
+
+  if (!response.ok || !isSafeHttpUrl(payload?.url)) {
+    URL.revokeObjectURL(localThumbUrl);
+    const serverMsg = payload?.message?.trim();
+    throw new Error(
+      serverMsg ||
+        describeHttpError(
+          response.status,
+          `فشل رفع الصورة (رمز الحالة: ${response.status}). يرجى المحاولة مرة أخرى.`
+        )
+    );
+  }
+
+  const thumbUrl = isSafeHttpUrl(payload.thumbUrl)
+    ? payload.thumbUrl
+    : isSafeHttpUrl(payload.displayUrl)
+      ? payload.displayUrl
+      : localThumbUrl;
+
+  if (thumbUrl !== localThumbUrl) {
+    URL.revokeObjectURL(localThumbUrl);
+  }
+
+  return {
+    url: payload.url,
+    thumbUrl,
+  };
+}
+
 async function uploadToGofile(file: File): Promise<string> {
   const formData = new FormData();
   formData.append('file', file);
 
-  const response = await fetch('https://upload.gofile.io/uploadfile', {
-    method: 'POST',
-    body: formData,
-  });
+  let response: Response;
+  try {
+    response = await fetch('https://upload.gofile.io/uploadfile', {
+      method: 'POST',
+      body: formData,
+    });
+  } catch {
+    throw new Error('تعذر الاتصال بخادم رفع الملفات. تحقق من اتصال الإنترنت وحاول مجدداً.');
+  }
 
   const payload = await safeParseJson<GofileUploadResponse>(response);
   const downloadPage = payload?.data?.downloadPage;
 
   if (!response.ok || payload?.status !== 'ok' || !isSafeHttpUrl(downloadPage)) {
-    throw new Error('تعذر رفع الملف حالياً. يرجى المحاولة مرة أخرى.');
+    throw new Error(`تعذر رفع الملف حالياً (رمز الحالة: ${response.status}).`);
   }
 
   return downloadPage;
@@ -114,78 +180,10 @@ async function uploadToTmpfiles(file: File): Promise<string> {
   const uploadedUrl = payload?.data?.url;
 
   if (!response.ok || payload?.status !== 'success' || !isSafeHttpUrl(uploadedUrl)) {
-    throw new Error('تعذر رفع الملف حالياً. يرجى المحاولة مرة أخرى.');
+    throw new Error(`تعذر رفع الملف حالياً (رمز الحالة: ${response.status}).`);
   }
 
   return uploadedUrl;
-}
-
-export interface ClientImageUploadResult {
-  url: string;
-  thumbUrl: string;
-}
-
-export async function uploadImageClientSide(
-  file: File
-): Promise<ClientImageUploadResult> {
-  const localThumbUrl = URL.createObjectURL(file);
-
-  if (isImgbbConfigured()) {
-    const formData = new FormData();
-    formData.append('key', IMGBB_API_KEY);
-    formData.append('image', file);
-    formData.append('name', file.name.replace(/\.[^.]+$/, '').slice(0, 80));
-
-    const response = await fetch('https://api.imgbb.com/1/upload', {
-      method: 'POST',
-      body: formData,
-    });
-
-    const payload = await safeParseJson<ImgbbResponse>(response);
-    const imgUrl = payload?.data?.url;
-
-    if (!response.ok || !payload?.success || !isSafeHttpUrl(imgUrl)) {
-      URL.revokeObjectURL(localThumbUrl);
-      throw new Error(
-        payload?.error?.message ||
-          'تعذر رفع الصورة حالياً. يرجى المحاولة مرة أخرى.'
-      );
-    }
-
-    const thumbUrl = isSafeHttpUrl(payload.data?.thumb?.url)
-      ? payload.data.thumb.url
-      : isSafeHttpUrl(payload.data?.display_url)
-        ? payload.data.display_url
-        : localThumbUrl;
-
-    if (thumbUrl !== localThumbUrl) {
-      URL.revokeObjectURL(localThumbUrl);
-    }
-
-    return {
-      url: imgUrl,
-      thumbUrl,
-    };
-  }
-
-  try {
-    const hostedUrl = await uploadToGofile(file);
-    return {
-      url: hostedUrl,
-      thumbUrl: localThumbUrl,
-    };
-  } catch {
-    try {
-      const fallbackUrl = await uploadToTmpfiles(file);
-      return {
-        url: fallbackUrl,
-        thumbUrl: localThumbUrl,
-      };
-    } catch (err) {
-      URL.revokeObjectURL(localThumbUrl);
-      throw err;
-    }
-  }
 }
 
 export interface ClientFileUploadResult {

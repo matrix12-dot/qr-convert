@@ -4,6 +4,7 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import {fileURLToPath} from 'url';
+import {handleUploadOptions, handleUploadPost} from './shared/imgbbProxy';
 
 dotenv.config();
 
@@ -152,7 +153,7 @@ async function startServer() {
   const app = express();
   const port = Number(process.env.PORT) || 3000;
 
-  app.use(express.json({limit: '25mb'}));
+  app.use(express.json({limit: '45mb'}));
 
   // فحص حالة إعداد مفتاح ImgBB دون كشف المفتاح للواجهة
   app.get('/api/upload-status', (_req, res) => {
@@ -161,89 +162,46 @@ async function startServer() {
     });
   });
 
-  // نقطة نهاية وسيطة لرفع الصور إلى ImgBB بأمان
-  app.post('/api/upload-image', async (req, res) => {
-    try {
-      if (!isImgbbConfigured()) {
-        res.status(400).json({
-          error: 'MISSING_API_KEY',
-          message:
-            'لم يتم تعيين مفتاح ImgBB API بعد. أضف المتغير IMGBB_API_KEY في لوحة الأسرار (Secrets) أو ملف .env أو داخل server.ts.',
-        });
-        return;
-      }
-
-      const body = req.body as ImgbbUploadRequestBody;
-      const rawImage = body?.imageBase64?.trim();
-
-      if (!rawImage) {
-        res.status(400).json({
-          error: 'INVALID_IMAGE',
-          message: 'يرجى اختيار صورة صالحة للرفع.',
-        });
-        return;
-      }
-
-      const cleanBase64 = rawImage.includes(',') ? rawImage.split(',')[1] : rawImage;
-      if (!cleanBase64) {
-        res.status(400).json({
-          error: 'INVALID_IMAGE',
-          message: 'بيانات الصورة غير صالحة.',
-        });
-        return;
-      }
-
-      const estimatedBytes = Math.ceil((cleanBase64.length * 3) / 4);
-      if (estimatedBytes > 12 * 1024 * 1024) {
-        res.status(413).json({
-          error: 'FILE_TOO_LARGE',
-          message: 'حجم الصورة يتجاوز الحد المسموح به (10 ميجابايت).',
-        });
-        return;
-      }
-
-      const formPayload = new URLSearchParams();
-      formPayload.set('key', IMGBB_API_KEY);
-      formPayload.set('image', cleanBase64);
-      if (body.name && body.name.trim()) {
-        formPayload.set('name', body.name.trim().slice(0, 80));
-      }
-
-      const imgbbResponse = await fetch('https://api.imgbb.com/1/upload', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: formPayload.toString(),
-      });
-
-      const result = (await imgbbResponse.json()) as ImgbbApiResponse;
-
-      if (!imgbbResponse.ok || !result.success || !result.data?.url) {
-        res.status(imgbbResponse.status || 502).json({
-          error: 'IMGBB_UPLOAD_FAILED',
-          message:
-            result.error?.message ||
-            'تعذر رفع الصورة إلى ImgBB. تأكد من صحة مفتاح API وحاول مرة أخرى.',
-        });
-        return;
-      }
-
-      res.json({
-        url: result.data.url,
-        displayUrl: result.data.display_url,
-        thumbUrl: result.data.thumb?.url || result.data.display_url,
-        title: result.data.title,
-        size: result.data.size,
-      });
-    } catch (error) {
-      console.error('ImgBB upload proxy error:', error);
-      res.status(500).json({
-        error: 'SERVER_ERROR',
-        message: 'حدث خطأ غير متوقع أثناء معالجة الصورة.',
-      });
-    }
+  app.options(['/api/upload', '/api/upload-image'], (_req, res) => {
+    const webRes = handleUploadOptions();
+    webRes.headers.forEach((val, key) => res.setHeader(key, val));
+    res.status(webRes.status).end();
   });
+
+  // نقطة نهاية وسيطة موحدة لرفع الصور (تدعم FormData و JSON) مع ترويسات CORS
+  app.post(
+    ['/api/upload', '/api/upload-image'],
+    express.raw({type: 'multipart/form-data', limit: '35mb'}),
+    async (req, res) => {
+      try {
+        const contentType = req.header('content-type') || '';
+        const bodyPayload = Buffer.isBuffer(req.body)
+          ? new Uint8Array(req.body)
+          : typeof req.body === 'object' && req.body !== null
+            ? JSON.stringify(req.body)
+            : '';
+
+        const webReq = new Request('http://localhost/api/upload', {
+          method: 'POST',
+          headers: {'content-type': contentType},
+          body: bodyPayload,
+        });
+
+        const webRes = await handleUploadPost(webReq, IMGBB_API_KEY);
+        webRes.headers.forEach((val, key) => res.setHeader(key, val));
+        const text = await webRes.text();
+        res.status(webRes.status).send(text);
+      } catch (error) {
+        console.error('Upload proxy error:', error);
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+        res.status(500).json({
+          error: 'SERVER_ERROR',
+          message: 'حدث خطأ غير متوقع أثناء معالجة الصورة على الخادم.',
+        });
+      }
+    }
+  );
 
   // رفع وإرفاق الملفات العامة وتوليد رابط تحميل مباشر لرمز QR
   app.post('/api/upload-file', (req, res) => {
