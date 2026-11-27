@@ -92,6 +92,20 @@ export interface ClientImageUploadResult {
   thumbUrl: string;
 }
 
+function getViteInjectedImgbbKey(): string | null {
+  const key = (
+    import.meta.env.VITE_IMGBB_API_KEY as string | undefined
+  )?.trim();
+  if (
+    !key ||
+    key === 'YOUR_IMGBB_API_KEY_HERE' ||
+    key === 'MY_IMGBB_API_KEY'
+  ) {
+    return null;
+  }
+  return key;
+}
+
 export async function uploadImageClientSide(
   file: File
 ): Promise<ClientImageUploadResult> {
@@ -99,6 +113,11 @@ export async function uploadImageClientSide(
   const formData = new FormData();
   formData.append('image', file);
   formData.append('name', file.name.replace(/\.[^.]+$/, '').slice(0, 80));
+
+  const viteApiKey = getViteInjectedImgbbKey();
+  if (viteApiKey) {
+    formData.append('key', viteApiKey);
+  }
 
   let response: Response;
   try {

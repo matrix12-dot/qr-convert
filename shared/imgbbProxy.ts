@@ -59,26 +59,32 @@ export async function handleUploadPost(
   rawApiKey: string | undefined
 ): Promise<Response> {
   try {
-    if (!isValidApiKey(rawApiKey)) {
-      return jsonResponse(
-        {
-          error: 'MISSING_API_KEY',
-          message:
-            'لم يتم تعيين مفتاح خدمة استضافة الصور (IMGBB_API_KEY) في متغيرات البيئة على الخادم.',
-        },
-        500
-      );
-    }
-
-    const apiKey = rawApiKey.trim();
     const contentType = request.headers.get('content-type') || '';
     const outgoingForm = new FormData();
-    outgoingForm.append('key', apiKey);
+    let resolvedKey = isValidApiKey(rawApiKey) ? rawApiKey.trim() : '';
 
     if (contentType.includes('multipart/form-data')) {
       const incomingForm = await request.formData();
       const imageEntry = incomingForm.get('image');
       const nameEntry = incomingForm.get('name');
+      const formKeyEntry = incomingForm.get('key');
+
+      if (!resolvedKey && typeof formKeyEntry === 'string' && isValidApiKey(formKeyEntry)) {
+        resolvedKey = formKeyEntry.trim();
+      }
+
+      if (!resolvedKey) {
+        return jsonResponse(
+          {
+            error: 'MISSING_API_KEY',
+            message:
+              'لم يتم تعيين مفتاح خدمة استضافة الصور (VITE_IMGBB_API_KEY) في متغيرات البيئة.',
+          },
+          500
+        );
+      }
+
+      outgoingForm.append('key', resolvedKey);
 
       if (!imageEntry) {
         return jsonResponse(
@@ -146,7 +152,25 @@ export async function handleUploadPost(
         imageBase64?: string;
         image?: string;
         name?: string;
+        key?: string;
       } | null;
+
+      if (!resolvedKey && typeof body?.key === 'string' && isValidApiKey(body.key)) {
+        resolvedKey = body.key.trim();
+      }
+
+      if (!resolvedKey) {
+        return jsonResponse(
+          {
+            error: 'MISSING_API_KEY',
+            message:
+              'لم يتم تعيين مفتاح خدمة استضافة الصور (VITE_IMGBB_API_KEY) في متغيرات البيئة.',
+          },
+          500
+        );
+      }
+
+      outgoingForm.append('key', resolvedKey);
 
       const rawImage = (body?.imageBase64 || body?.image || '').trim();
       const cleanBase64 = rawImage.includes(',') ? rawImage.split(',')[1] : rawImage;

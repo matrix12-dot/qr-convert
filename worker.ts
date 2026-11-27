@@ -1,6 +1,7 @@
 import {handleUploadOptions, handleUploadPost} from './shared/imgbbProxy';
 
 export interface WorkerEnv {
+  VITE_IMGBB_API_KEY?: string;
   IMGBB_API_KEY?: string;
   ASSETS?: {
     fetch(request: Request): Promise<Response>;
@@ -17,7 +18,10 @@ export default {
         return handleUploadOptions();
       }
       if (request.method === 'POST') {
-        return handleUploadPost(request, env.IMGBB_API_KEY);
+        return handleUploadPost(
+          request,
+          env.VITE_IMGBB_API_KEY || env.IMGBB_API_KEY
+        );
       }
       return new Response(
         JSON.stringify({

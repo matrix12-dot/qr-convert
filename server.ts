@@ -11,11 +11,10 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ============================================================================
-// ضع مفتاح ImgBB API الخاص بك هنا أو داخل متغير البيئة IMGBB_API_KEY
-// احصل على مفتاح مجاني من: https://api.imgbb.com/
-// ============================================================================
-const IMGBB_API_KEY = process.env.IMGBB_API_KEY || 'YOUR_IMGBB_API_KEY_HERE';
+const IMGBB_API_KEY =
+  process.env.VITE_IMGBB_API_KEY ||
+  process.env.IMGBB_API_KEY ||
+  'YOUR_IMGBB_API_KEY_HERE';
 
 const UPLOADS_DIR = path.resolve(__dirname, 'uploads');
 fs.mkdirSync(UPLOADS_DIR, {recursive: true});
